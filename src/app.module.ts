@@ -1,11 +1,18 @@
-import { Module } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from './auth/auth.module';
-import { UserModule } from './user/user.module';
-import { validate, Environment } from './env.validation';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MorganInterceptor, MorganModule } from 'nest-morgan';
+import { AuthModule } from './auth/auth.module';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { Environment, validate } from './env.validation';
 import { User } from './user/entities/User.entity';
-import { Connection } from 'typeorm';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -23,7 +30,8 @@ import { Connection } from 'typeorm';
       // validate를 호출할때 env 정보를 object로 변환하여 인자로 전달한다.
     }),
 
-    /* typeOrm 모듈 설정 => useFactory를 사용해 모듈 동적 생성 */
+    /* typeOrm 모듈 설정 
+        => useFactory를 사용해 모듈 동적 생성 */
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({
@@ -49,10 +57,28 @@ import { Connection } from 'typeorm';
       }),
       inject: [ConfigService],
     }),
+    // morgan 모듈 DI
+    MorganModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    /* 전역 Interceptor 설정:  morgan 전역 설정 */
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MorganInterceptor(
+        process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev',
+      ),
+    },
+  ],
 })
-export class AppModule {
+export class AppModule implements NestModule {
+  /* 전역 미들웨어 설정 */
+  configure(consumer: MiddlewareConsumer) {
+    if (process.env.NODE_ENV === Environment.Development) {
+      consumer //
+        .apply(LoggerMiddleware)
+        .forRoutes({ path: '/*', method: RequestMethod.ALL });
+    }
+  }
   //constructor(private connection: Connection) {}
 }
