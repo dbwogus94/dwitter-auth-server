@@ -1,16 +1,19 @@
 import {
+  HttpException,
   MiddlewareConsumer,
   Module,
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MorganInterceptor, MorganModule } from 'nest-morgan';
 import { AuthModule } from './auth/auth.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { Environment, validate } from './env.validation';
+import { HttpExceptionFilter } from './http-exception.filter';
+import { ResponseInterceptor } from './response.interceptor';
 import { User } from './user/entities/User.entity';
 import { UserModule } from './user/user.module';
 
@@ -62,18 +65,31 @@ import { UserModule } from './user/user.module';
   ],
   controllers: [],
   providers: [
-    /* 전역 Interceptor 설정:  morgan 전역 설정 */
+    /* 전역 Interceptor 
+      - MorganInterceptor는 가장 마지막에 실행된다.
+    */
     {
+      // morgan 전역 설정
       provide: APP_INTERCEPTOR,
       useClass: MorganInterceptor(
         process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev',
       ),
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseInterceptor,
+    },
+    /* 전역 예외 filter 설정 */
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
     },
   ],
 })
 export class AppModule implements NestModule {
   /* 전역 미들웨어 설정 */
   configure(consumer: MiddlewareConsumer) {
+    // 개발모드에서만 사용
     if (process.env.NODE_ENV === Environment.Development) {
       consumer //
         .apply(LoggerMiddleware)
