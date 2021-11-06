@@ -46,6 +46,9 @@ class EnvironmentVariables {
   @IsString()
   JWT_REFRESH_TOKEN_EXPIRATION_TIME: string;
 
+  @IsString()
+  JWT_ISSUER: string;
+
   /* bcrypt */
   @IsNumber()
   BCRYPT_SALT: number;
