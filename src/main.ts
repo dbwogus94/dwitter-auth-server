@@ -16,8 +16,8 @@ async function bootstrap() {
     new ValidationPipe({
       // true면 유효성 데코레이터를 사용하지 않는 속성이 값으로 들어오는 경우 제거한다.
       whitelist: true,
-      // true면 whitlist에서 속성을 제거하는 대신 예외를 발생
-      forbidNonWhitelisted: true,
+      // true면 whitlist에서 속성을 제거하는 대신 예외를 발생 => 리다이렉션 때문에 false로 변경
+      forbidNonWhitelisted: false,
       // true면 요청 payload를 dto로 변환
       transform: true,
     }),
