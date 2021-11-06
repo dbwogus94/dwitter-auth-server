@@ -1,12 +1,11 @@
 import {
-  HttpException,
   MiddlewareConsumer,
   Module,
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MorganInterceptor, MorganModule } from 'nest-morgan';
 import { AuthModule } from './auth/auth.module';
@@ -16,22 +15,14 @@ import { HttpExceptionFilter } from './http-exception.filter';
 import { ResponseInterceptor } from './response.interceptor';
 import { User } from './user/entities/User.entity';
 import { UserModule } from './user/user.module';
+import { ConfigModuleOptions, ValidationPipeOptions } from './common/options';
 
 @Module({
   imports: [
     AuthModule,
     UserModule,
     /* ConfigModule으로 환경설정 => dotenv 모듈을 내부적으로 사용한다. */
-    ConfigModule.forRoot({
-      envFilePath:
-        process.env.NODE_ENV === Environment.Production //
-          ? '.env'
-          : '.env.dev',
-      isGlobal: true,
-      validate,
-      // env.validation.ts에 정의된 validate를 호출하여 유효성 검사를 실행한다.
-      // validate를 호출할때 env 정보를 object로 변환하여 인자로 전달한다.
-    }),
+    ConfigModule.forRoot(ConfigModuleOptions),
 
     /* typeOrm 모듈 설정 
         => useFactory를 사용해 모듈 동적 생성 */
@@ -79,6 +70,11 @@ import { UserModule } from './user/user.module';
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor,
     },
+    /* 전역 Pipe 설정 */
+    // {
+    //   provide: APP_PIPE,
+    //   useValue: new ValidationPipe(ValidationPipeOptions),
+    // },
     /* 전역 예외 filter 설정 */
     {
       provide: APP_FILTER,
