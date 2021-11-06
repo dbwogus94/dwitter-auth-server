@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
@@ -25,6 +26,10 @@ export class User {
 
   @Column('text')
   url: string;
+
+  @Exclude()
+  @Column('varchar', { length: 300, nullable: true })
+  public refreshToken?: string;
 
   @CreateDateColumn()
   createdAt: Date;

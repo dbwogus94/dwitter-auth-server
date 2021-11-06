@@ -23,7 +23,6 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('/login')
   async login(@Body() loginDto: LoginDto) {
-    this.authService.login(loginDto);
-    return { text: '로그인' };
+    return this.authService.login(loginDto.username);
   }
 }

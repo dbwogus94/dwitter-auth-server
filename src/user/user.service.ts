@@ -11,8 +11,12 @@ export class UserService {
     return this.userRepository.findOne({ username });
   }
 
-  async createUser(user: SignupDto): Promise<{ id: number }> {
+  async create(user: SignupDto): Promise<{ id: number }> {
     const { raw } = await this.userRepository.insert(user);
     return { id: raw.insertId };
+  }
+
+  async updateByRefreshToken(id: number, refreshToken: string): Promise<void> {
+    await this.userRepository.update({ id }, { refreshToken });
   }
 }

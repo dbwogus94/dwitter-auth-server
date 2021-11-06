@@ -1,8 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { User } from 'src/user/entities/User.entity';
 import { UserService } from 'src/user/user.service';
-import { LoginDto } from './dto/login.dto';
+import { JwtService } from '@nestjs/jwt';
 import { SignupDto } from './dto/signup.dto';
 
 @Injectable()
@@ -10,7 +11,35 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly config: ConfigService,
+    private jwtService: JwtService,
   ) {}
+
+  /**
+   * 엑세스 토큰 발급
+   * @param jwtPayload
+   * @returns accessToken(jwt)
+   */
+  issueAccessToken(jwtPayload: object): string {
+    const option = {
+      secret: this.config.get('JWT_ACCESS_TOKEN_SECRET'),
+      expiresIn: this.config.get('JWT_ACCESS_TOKEN_EXPIRATION_TIME'),
+      issuer: this.config.get('JWT_ISSUER'),
+    };
+    return this.jwtService.sign(jwtPayload, option);
+  }
+
+  /**
+   * 리프레쉬 토큰 발급
+   * @returns refreshToken(jwt)
+   */
+  issueRefreshToken(): string {
+    const option = {
+      secret: this.config.get('JWT_REFRESH_TOKEN_SECRET'),
+      expiresIn: this.config.get('JWT_REFRESH_TOKEN_EXPIRATION_TIME'),
+      issuer: this.config.get('JWT_ISSUER'),
+    };
+    return this.jwtService.sign({}, option);
+  }
 
   /**
    * auth signup
@@ -32,16 +61,20 @@ export class AuthService {
       this.config.get('BCRYPT_SALT'),
     );
 
-    return this.userService.createUser({
+    return this.userService.create({
       ...singupDto,
       password: hashed,
     });
   }
 
-  async login(loginDto: LoginDto): Promise<any> {}
-
+  /**
+   * local.strategy.ts에서 사용되는 인증 로직 메서드
+   * @param username
+   * @param pass - password
+   * @returns
+   */
   async validateUser(username: string, pass: string): Promise<object | null> {
-    const user = await this.userService.findByUsername(username);
+    const user: User = await this.userService.findByUsername(username);
     if (!user) {
       return null;
       /* 
@@ -53,7 +86,7 @@ export class AuthService {
       */
     }
 
-    const isEqual = await bcrypt.compare(pass, user.password);
+    const isEqual: boolean = await bcrypt.compare(pass, user.password);
     if (isEqual) {
       // Object Destructuring 기법
       const { password, ...result } = user;
@@ -61,5 +94,27 @@ export class AuthService {
       // result에는 password를 제외하고 담긴다.
     }
     return null;
+  }
+
+  /**
+   * login 서비스
+   * 1. 리프레쉬 토큰 발행
+   * 2. DB 저장
+   * 3. 엑세스 토큰 발행
+   * 4. 리턴
+   * @param username
+   * @returns {id, refreshToken, accessToken}
+   */
+  async login(username: string): Promise<any> {
+    const user: User = await this.userService.findByUsername(username);
+    const { id } = user;
+    const refreshToken: string = this.issueRefreshToken();
+    await this.userService.updateByRefreshToken(id, refreshToken);
+
+    return {
+      id,
+      refreshToken,
+      accessToken: this.issueAccessToken({ id }),
+    };
   }
 }
