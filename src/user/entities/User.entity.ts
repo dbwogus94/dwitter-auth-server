@@ -29,6 +29,10 @@ export class User {
 
   @Exclude()
   @Column('varchar', { length: 300, nullable: true })
+  public accessToken?: string;
+
+  @Exclude()
+  @Column('varchar', { length: 300, nullable: true })
   public refreshToken?: string;
 
   @CreateDateColumn()

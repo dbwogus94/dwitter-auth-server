@@ -1,44 +1,67 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User } from 'src/user/entities/User.entity';
 import { UserService } from 'src/user/user.service';
-import { JwtService } from '@nestjs/jwt';
 import { SignupDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {
+  private accessTokenOptions: any;
+  private refreshTokenOptions: any;
+
   constructor(
     private readonly userService: UserService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
-  ) {}
-
-  /**
-   * 엑세스 토큰 발급
-   * @param jwtPayload
-   * @returns accessToken(jwt)
-   */
-  issueAccessToken(jwtPayload: object): string {
-    const option = {
+  ) {
+    this.accessTokenOptions = {
       secret: this.config.get('JWT_ACCESS_TOKEN_SECRET'),
       expiresIn: this.config.get('JWT_ACCESS_TOKEN_EXPIRATION_TIME'),
       issuer: this.config.get('JWT_ISSUER'),
     };
-    return this.jwtService.sign(jwtPayload, option);
-  }
-
-  /**
-   * 리프레쉬 토큰 발급
-   * @returns refreshToken(jwt)
-   */
-  issueRefreshToken(): string {
-    const option = {
+    this.refreshTokenOptions = {
       secret: this.config.get('JWT_REFRESH_TOKEN_SECRET'),
       expiresIn: this.config.get('JWT_REFRESH_TOKEN_EXPIRATION_TIME'),
       issuer: this.config.get('JWT_ISSUER'),
     };
-    return this.jwtService.sign({}, option);
+  }
+
+  /**
+   * 엑세스 토큰 발행
+   * @param jwtPayload
+   * @returns accessToken(jwt)
+   */
+  issueAccessToken(jwtPayload: object): string {
+    return this.jwtService.sign(jwtPayload, this.accessTokenOptions);
+  }
+
+  /**
+   * 리프레시 토큰 발행
+   * @returns refreshToken(jwt)
+   */
+  issueRefreshToken(): string {
+    return this.jwtService.sign({}, this.refreshTokenOptions);
+  }
+
+  /**
+   * 리프레시 토큰 유효한지 체크
+   * @param refreshToken
+   * @returns
+   */
+  isAccessTokenAlive(refreshToken: string) {
+    try {
+      return this.jwtService.verify(refreshToken, {
+        secret: this.refreshTokenOptions.secret,
+      });
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -98,23 +121,64 @@ export class AuthService {
 
   /**
    * login 서비스
-   * 1. 리프레쉬 토큰 발행
-   * 2. DB 저장
-   * 3. 엑세스 토큰 발행
+   * 1. 엑세스 토큰 발행
+   * 2. 리프레시 토큰 발행
+   * 3. 엑세스, 리프레시 토큰 DB 저장
    * 4. 리턴
    * @param username
-   * @returns {id, refreshToken, accessToken}
+   * @returns {id, username, accessToken}
    */
   async login(username: string): Promise<any> {
     const user: User = await this.userService.findByUsername(username);
     const { id } = user;
+    const accessToken: string = this.issueAccessToken({ id });
     const refreshToken: string = this.issueRefreshToken();
-    await this.userService.updateByRefreshToken(id, refreshToken);
+    await this.userService.updateTokens(id, accessToken, refreshToken);
+
+    // refresh 토큰은 DB에서 관리
+    return {
+      id,
+      username,
+      accessToken,
+    };
+  }
+
+  /**
+   * 엑세스 토큰 재발행
+   * 1. id와 엑세스 토큰으로 유저 조회
+   * 2. 조회한 유저가 가진 리프레쉬 토큰 유효한지 확인
+   * 3. 유효하다면 엑세스 토큰 재발행
+   * 4. 재발급한 토큰 DB에 저장
+   * 5. 리턴
+   * @param id
+   * @param accessToken
+   * @returns {id, username, accessToken}
+   */
+  async refresh(id: number, accessToken: string): Promise<any> {
+    // user 조회(id와 ccessToken을 사용하여 조회)
+    const user = await this.userService.findByToken(id, accessToken);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    const { username, refreshToken } = user;
+    // 조회한 리프레쉬 토큰 유효한지 확인
+    const isAlive = !!this.isAccessTokenAlive(refreshToken);
+    if (!isAlive) {
+      throw new UnauthorizedException();
+    }
+    // 리프레시 토큰이 유효하다면 엑세스 토큰 재발급
+    const newAccessToken = this.issueAccessToken({ id });
+    // 재발급한 토큰 저장 DB 저장
+    await this.userService.updateTokens(id, accessToken, refreshToken);
+
+    // TODO: redis 추가시 로직 추가
+    // 기존 엑세스 토큰은 만료되지 않았을 수 있으니 redis에 등록하여 블랙리스트로 만든다.
+    // 리프레시 토큰은 DB에 저장하기 때문에 블랙리스트로 등록할 필요가 없다.
 
     return {
       id,
-      refreshToken,
-      accessToken: this.issueAccessToken({ id }),
+      username,
+      accessToken: newAccessToken,
     };
   }
 }

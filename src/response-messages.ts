@@ -8,4 +8,5 @@ export const errorMessage = {
   signup: { 409: '중복된 아이디(username) 입니다.' },
   login: { 401: '등록된 사용자가 아니거나, 정보가 일치하지 않습니다.' },
   me: { 401: 'JWT가 유효하지 않습니다.' },
+  refresh: { 400: 'query의 id에는 숫자만 사용가능합니다.' },
 };
