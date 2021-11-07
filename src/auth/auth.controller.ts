@@ -10,11 +10,14 @@ import {
   Res,
   UnauthorizedException,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
 import { SignupDto } from './dto/signup.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { LocalAuthGuard } from './local-auth.guard';
 
 @Controller('/auth')
@@ -38,13 +41,21 @@ export class AuthController {
     return this.authService.login(loginDto.username);
   }
 
-  @Get('/refresh') // 인증 헤더에 있는 access jwt 가져온다.
+  //@UseGuards(JwtAuthGuard)
+  @Get('/me')
+  me(@Req() req, @Headers('authorization') token: string) {
+    const { username } = req.user; // JwtAuthGuard에서 생성
+    const accessToken: string = token.split(' ')[1];
+    return { username, accessToken };
+  }
+
+  @Get('/refresh')
   refresh(
-    @Query('id', new ParseIntPipe()) id: number,
+    @Query() refreshDto: RefreshDto,
     @Headers('authorization') token: string,
   ) {
     if (!token) throw new UnauthorizedException();
     const accessToken: string = token.split(' ')[1];
-    return this.authService.refresh(id, accessToken);
+    return this.authService.refresh(refreshDto.username, accessToken);
   }
 }

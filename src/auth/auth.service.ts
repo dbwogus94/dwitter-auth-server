@@ -131,13 +131,12 @@ export class AuthService {
   async login(username: string): Promise<any> {
     const user: User = await this.userService.findByUsername(username);
     const { id } = user;
-    const accessToken: string = this.issueAccessToken({ id });
+    const accessToken: string = this.issueAccessToken({ id, username });
     const refreshToken: string = this.issueRefreshToken();
     await this.userService.updateTokens(id, accessToken, refreshToken);
 
     // refresh 토큰은 DB에서 관리
     return {
-      id,
       username,
       accessToken,
     };
@@ -150,24 +149,24 @@ export class AuthService {
    * 3. 유효하다면 엑세스 토큰 재발행
    * 4. 재발급한 토큰 DB에 저장
    * 5. 리턴
-   * @param id
+   * @param username
    * @param accessToken
    * @returns {id, username, accessToken}
    */
-  async refresh(id: number, accessToken: string): Promise<any> {
+  async refresh(username: string, accessToken: string): Promise<any> {
     // user 조회(id와 ccessToken을 사용하여 조회)
-    const user = await this.userService.findByToken(id, accessToken);
+    const user = await this.userService.findByToken(username, accessToken);
     if (!user) {
       throw new UnauthorizedException();
     }
-    const { username, refreshToken } = user;
+    const { id, refreshToken } = user;
     // 조회한 리프레쉬 토큰 유효한지 확인
     const isAlive = !!this.isAccessTokenAlive(refreshToken);
     if (!isAlive) {
       throw new UnauthorizedException();
     }
     // 리프레시 토큰이 유효하다면 엑세스 토큰 재발급
-    const newAccessToken = this.issueAccessToken({ id });
+    const newAccessToken = this.issueAccessToken({ id, username });
     // 재발급한 토큰 저장 DB 저장
     await this.userService.updateTokens(id, accessToken, refreshToken);
 
@@ -176,7 +175,6 @@ export class AuthService {
     // 리프레시 토큰은 DB에 저장하기 때문에 블랙리스트로 등록할 필요가 없다.
 
     return {
-      id,
       username,
       accessToken: newAccessToken,
     };

@@ -24,10 +24,10 @@ export class UserService {
     await this.userRepository.update({ id }, { refreshToken, accessToken });
   }
 
-  async findByToken(id: number, accessToken: string): Promise<User> {
+  async findByToken(username: string, accessToken: string): Promise<User> {
     return this.userRepository.findOne(
-      { id, accessToken },
-      { select: ['username', 'refreshToken'] },
+      { username, accessToken },
+      { select: ['id', 'refreshToken'] },
     );
   }
 }
