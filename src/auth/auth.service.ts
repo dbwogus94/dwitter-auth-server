@@ -6,9 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { RedisService } from 'nestjs-redis';
 import { User } from 'src/user/entities/User.entity';
 import { UserService } from 'src/user/user.service';
 import { SignupDto } from './dto/signup.dto';
+import { Redis } from 'ioredis';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +21,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
+    private redisService: RedisService,
   ) {
     this.accessTokenOptions = {
       secret: this.config.get('JWT_ACCESS_TOKEN_SECRET'),
@@ -33,12 +36,47 @@ export class AuthService {
   }
 
   /**
+   * redis 클라이언트 리턴
+   * @returns
+   */
+  getRedisClient(): Redis {
+    const name = this.config.get('REDIS_NAME');
+    return this.redisService.getClient(name);
+  }
+
+  /**
+   * redis에 블랙리스트 토큰 등록
+   * @param id
+   * @param accessToken
+   */
+  async setBlacklist(id: number, accessToken: string): Promise<void> {
+    if (accessToken.startsWith('Bearer')) {
+      accessToken = accessToken.split(' ')[1];
+    }
+    const client = this.getRedisClient();
+    await client.set(id.toString(), accessToken);
+  }
+
+  /**
    * 엑세스 토큰 발행
    * @param jwtPayload
    * @returns accessToken(jwt)
    */
   issueAccessToken(jwtPayload: object): string {
     return this.jwtService.sign(jwtPayload, this.accessTokenOptions);
+  }
+
+  /**
+   * 엑세스 토큰 복호화
+   * @param token
+   * @returns
+   */
+  deCodeAccessToken(token: string): any | boolean {
+    try {
+      return this.jwtService.verify(token, this.accessTokenOptions.secret);
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -54,7 +92,7 @@ export class AuthService {
    * @param refreshToken
    * @returns
    */
-  isAccessTokenAlive(refreshToken: string) {
+  isAccessTokenAlive(refreshToken: string): any | boolean {
     try {
       return this.jwtService.verify(refreshToken, {
         secret: this.refreshTokenOptions.secret,
@@ -170,13 +208,19 @@ export class AuthService {
     // 재발급한 토큰 저장 DB 저장
     await this.userService.updateTokens(id, accessToken, refreshToken);
 
-    // TODO: redis 추가시 로직 추가
-    // 기존 엑세스 토큰은 만료되지 않았을 수 있으니 redis에 등록하여 블랙리스트로 만든다.
-    // 리프레시 토큰은 DB에 저장하기 때문에 블랙리스트로 등록할 필요가 없다.
+    // 기존 엑세스 토큰 블랙 리스트로 추가
+    await this.setBlacklist(id, accessToken);
 
     return {
       username,
       accessToken: newAccessToken,
     };
+  }
+
+  async logout(id: number, accessToken: string): Promise<void> {
+    // DB에서 엑세스, 리프레시 토큰 제거
+    await this.userService.updateTokens(id, '', '');
+    // 엑세스 토큰 블랙리스트 등록
+    await this.setBlacklist(id, accessToken);
   }
 }

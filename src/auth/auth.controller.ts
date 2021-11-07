@@ -3,14 +3,13 @@ import {
   Controller,
   Get,
   Headers,
-  ParseIntPipe,
+  HttpCode,
   Post,
   Query,
   Req,
   Res,
   UnauthorizedException,
   UseGuards,
-  ValidationPipe,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -60,5 +59,14 @@ export class AuthController {
     if (!token) throw new UnauthorizedException();
     const accessToken: string = token.split(' ')[1];
     return this.authService.refresh(refreshDto.username, accessToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @Get('/logout')
+  async logout(@Req() req, @Headers('authorization') token: string) {
+    const { id } = req.user;
+    const accessToken: string = token.split(' ')[1];
+    await this.authService.logout(id, accessToken);
   }
 }
