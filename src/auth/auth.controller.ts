@@ -41,7 +41,10 @@ export class AuthController {
     return this.authService.login(loginDto.username);
   }
 
-  //@UseGuards(JwtAuthGuard)
+  // TODO: 토큰 블랙리스트 기능이 아직 없어
+  // 만료되지 않은 이전 토큰도 JwtAuthGuard에서 통과됨
+  // redis 추가로 블랙리스트 기능 추가시 보완 예정
+  @UseGuards(JwtAuthGuard)
   @Get('/me')
   me(@Req() req, @Headers('authorization') token: string) {
     const { username } = req.user; // JwtAuthGuard에서 생성
