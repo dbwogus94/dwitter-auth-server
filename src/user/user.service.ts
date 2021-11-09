@@ -16,7 +16,18 @@ export class UserService {
     return { id: raw.insertId };
   }
 
-  async updateByRefreshToken(id: number, refreshToken: string): Promise<void> {
-    await this.userRepository.update({ id }, { refreshToken });
+  async updateTokens(
+    id: number,
+    accessToken: string,
+    refreshToken: string,
+  ): Promise<void> {
+    await this.userRepository.update({ id }, { refreshToken, accessToken });
+  }
+
+  async findByToken(username: string, accessToken: string): Promise<User> {
+    return this.userRepository.findOne(
+      { username, accessToken },
+      { select: ['id', 'refreshToken'] },
+    );
   }
 }

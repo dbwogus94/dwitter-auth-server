@@ -19,10 +19,10 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
     next: CallHandler,
   ): Observable<Response<T>> {
     const statusCode = context.switchToHttp().getResponse().statusCode;
-    const msg = responseMessage[context.getHandler().name];
+    const message = responseMessage[context.getHandler().name][statusCode];
     return next.handle().pipe(
       map((data) => {
-        return { statusCode, msg, ...data };
+        return { statusCode, message, ...data };
       }),
     );
   }

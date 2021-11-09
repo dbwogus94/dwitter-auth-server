@@ -1,9 +1,8 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
-  NotFoundException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import * as path from 'path';
@@ -17,7 +16,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const status = exception.getStatus();
     const errResponse = exception.getResponse();
-    const lastURL = path.basename(request.url);
+    const lastURL = path.basename(request.url).split('?')[0];
     const customMessage = errorMessage[lastURL]
       ? errorMessage[lastURL][status]
       : undefined;

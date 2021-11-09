@@ -16,6 +16,7 @@ import { ResponseInterceptor } from './response.interceptor';
 import { User } from './user/entities/User.entity';
 import { UserModule } from './user/user.module';
 import { ConfigModuleOptions, ValidationPipeOptions } from './common/options';
+import { RedisModule } from 'nestjs-redis';
 
 @Module({
   imports: [
@@ -23,6 +24,20 @@ import { ConfigModuleOptions, ValidationPipeOptions } from './common/options';
     UserModule,
     /* ConfigModule으로 환경설정 => dotenv 모듈을 내부적으로 사용한다. */
     ConfigModule.forRoot(ConfigModuleOptions),
+
+    /* redis 모듈 설정  
+      TODO : nestjs-redis 정식 버전 에러 발생!!
+      - 임시로 개인이 수정한 라이브러리 추가 
+      - https://github.com/GyanendroKh/nestjs-redis 에서 직접 추가하여 실행하였음
+    */
+    RedisModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        name: config.get('REDIS_NAME'),
+        url: config.get('REDIS_URL'),
+      }),
+      inject: [ConfigService],
+    }),
 
     /* typeOrm 모듈 설정 
         => useFactory를 사용해 모듈 동적 생성 */

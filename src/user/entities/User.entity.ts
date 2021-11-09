@@ -12,7 +12,7 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column('varchar', { length: 100 })
+  @Column('varchar', { length: 100, unique: true })
   username: string;
 
   @Column('varchar', { length: 100 })
@@ -26,6 +26,10 @@ export class User {
 
   @Column('text')
   url: string;
+
+  @Exclude()
+  @Column('varchar', { length: 300, nullable: true })
+  public accessToken?: string;
 
   @Exclude()
   @Column('varchar', { length: 300, nullable: true })
