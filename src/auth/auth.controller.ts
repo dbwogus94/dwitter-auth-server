@@ -11,19 +11,35 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
+import { response, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { SignupDto } from './dto/signup.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { LocalAuthGuard } from './local-auth.guard';
+import { errorMessage, responseMessage } from '../response-messages';
 
+@ApiTags('Auth')
+@ApiBearerAuth()
 @Controller('/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('/signup')
+  @ApiCreatedResponse({ description: responseMessage.signup[201] })
+  @ApiConflictResponse({ description: errorMessage.signup[409] })
   async signup(@Body() signupDto: SignupDto, @Res() res: Response) {
     await this.authService.signup(signupDto);
     return res.redirect(308, '/auth/login');
@@ -36,15 +52,16 @@ export class AuthController {
   // 즉, 가드를 사용하면 ValidationPipe를 사용한 빈값 체크를 사용할 수 없다
   @UseGuards(LocalAuthGuard)
   @Post('/login')
+  @ApiCreatedResponse({ description: responseMessage.login[201] })
+  @ApiUnauthorizedResponse({ description: errorMessage.login[401] })
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto.username);
   }
 
-  // TODO: 토큰 블랙리스트 기능이 아직 없어
-  // 만료되지 않은 이전 토큰도 JwtAuthGuard에서 통과됨
-  // redis 추가로 블랙리스트 기능 추가시 보완 예정
   @UseGuards(JwtAuthGuard)
   @Get('/me')
+  @ApiCreatedResponse({ description: responseMessage.me[200] })
+  @ApiUnauthorizedResponse({ description: errorMessage.me[401] })
   me(@Req() req, @Headers('authorization') token: string) {
     const { username } = req.user; // JwtAuthGuard에서 생성
     const accessToken: string = token.split(' ')[1];
@@ -52,6 +69,8 @@ export class AuthController {
   }
 
   @Get('/refresh')
+  @ApiOkResponse({ description: responseMessage.refresh[200] })
+  @ApiUnauthorizedResponse({ description: errorMessage.refresh[401] })
   refresh(
     @Query() refreshDto: RefreshDto,
     @Headers('authorization') token: string,
@@ -62,8 +81,10 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @HttpCode(204)
   @Get('/logout')
+  @HttpCode(204)
+  @ApiNoContentResponse({ description: responseMessage.logout[204] })
+  @ApiUnauthorizedResponse({ description: errorMessage.logout[401] })
   async logout(@Req() req, @Headers('authorization') token: string) {
     const { id } = req.user;
     const accessToken: string = token.split(' ')[1];
