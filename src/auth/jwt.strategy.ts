@@ -41,5 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return { id: payload.id, username: payload.username };
     // Passport는 이 리턴 객체를 사용하여 user를 만들고
     // req.user에 할당 후 다음 로직을 호출한다.
+    // 단, AuthGuard('jwt')를 상속한 가드가 생성되어 있다면 == JwtAuthGuard
+    // 생성된 가드(JwtAuthGuard)의 메서드 handleRequest를 호출한다.
   }
 }
