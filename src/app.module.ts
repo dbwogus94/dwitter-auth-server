@@ -1,21 +1,16 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  RequestMethod,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MorganInterceptor, MorganModule } from 'nest-morgan';
 import { AuthModule } from './auth/auth.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
-import { Environment, validate } from './env.validation';
-import { HttpExceptionFilter } from './http-exception.filter';
-import { ResponseInterceptor } from './response.interceptor';
+import { Environment, validate } from './config/env.validation';
+import { HttpExceptionFilter } from './common/filter/http-exception.filter';
+import { ResponseInterceptor } from './common/interceptor/response.interceptor';
 import { User } from './user/entities/User.entity';
 import { UserModule } from './user/user.module';
-import { ConfigModuleOptions, ValidationPipeOptions } from './common/options';
+import { ConfigModuleOptions } from './config/options/config-module.options';
 import { RedisModule } from 'nestjs-redis';
 
 @Module({
@@ -77,9 +72,7 @@ import { RedisModule } from 'nestjs-redis';
     {
       // morgan 전역 설정
       provide: APP_INTERCEPTOR,
-      useClass: MorganInterceptor(
-        process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev',
-      ),
+      useClass: MorganInterceptor(process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev'),
     },
     {
       provide: APP_INTERCEPTOR,
