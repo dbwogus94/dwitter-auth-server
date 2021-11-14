@@ -13,18 +13,21 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
-  ApiHeader,
+  ApiMovedPermanentlyResponse,
   ApiNoContentResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ValidationPipeOptions } from 'src/config/options/validation-pipe.options';
-import { errorMessage, responseMessage } from '../response-messages';
+import { apiBearerAuthName, apiOperations, apiResponse } from 'src/swagger-api-setting';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -33,15 +36,16 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { LocalAuthGuard } from './local-auth.guard';
 
 @ApiTags('Auth')
-@ApiBearerAuth()
+@ApiBadRequestResponse(apiResponse.common[400])
 @Controller('/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @UsePipes(new ValidationPipe(ValidationPipeOptions))
   @Post('/signup')
-  @ApiCreatedResponse({ description: responseMessage.signup[201] })
-  @ApiConflictResponse({ description: errorMessage.signup[409] })
+  @ApiOperation(apiOperations.signup)
+  @ApiResponse(apiResponse.signup[308])
+  @ApiConflictResponse(apiResponse.signup[409])
   async signup(@Body() signupDto: SignupDto, @Res() res: Response): Promise<void> {
     await this.authService.signup(signupDto);
     return res.redirect(308, '/auth/login');
@@ -56,17 +60,20 @@ export class AuthController {
   // 즉, 가드를 사용하면 필수 필드에 대해서는 ValidationPipe를 사용한 빈값 체크를 사용할 수 없다.
   @UseGuards(LocalAuthGuard)
   @Post('/login')
-  @ApiCreatedResponse({ description: responseMessage.login[201] })
-  @ApiUnauthorizedResponse({ description: errorMessage.login[401] })
+  @ApiOperation(apiOperations.login)
+  @ApiCreatedResponse(apiResponse.login[201])
+  @ApiUnauthorizedResponse(apiResponse.login[401])
   async login(@Body() loginDto: LoginDto): Promise<any> {
     return this.authService.login(loginDto.username);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('/me')
-  @ApiCreatedResponse({ description: responseMessage.me[200] })
-  @ApiUnauthorizedResponse({ description: errorMessage.me['default'] })
-  me(@Req() req, @Headers('authorization') token: string): object {
+  @ApiBearerAuth(apiBearerAuthName)
+  @ApiOperation(apiOperations.me)
+  @ApiOkResponse(apiResponse.me[200])
+  @ApiUnauthorizedResponse(apiResponse.me[401])
+  me(@Req() req): object {
     const { username, accessToken } = req.user; // JwtAuthGuard.handleRequest에서 생성
     return { username, accessToken };
   }
@@ -75,8 +82,10 @@ export class AuthController {
   // => refresh 작업은 access토큰이 만료여도 가드를 통과해야 하기 때문이다.
   @UsePipes(new ValidationPipe(ValidationPipeOptions))
   @Get('/refresh')
-  @ApiOkResponse({ description: responseMessage.refresh[200] })
-  @ApiUnauthorizedResponse({ description: errorMessage.refresh['default'] })
+  @ApiBearerAuth(apiBearerAuthName)
+  @ApiOperation(apiOperations.refresh)
+  @ApiOkResponse(apiResponse.refresh[200])
+  @ApiUnauthorizedResponse(apiResponse.refresh[401])
   async refresh(@Query() refreshDto: RefreshDto, @Headers('authorization') token: string): Promise<any> {
     return this.authService.refresh(refreshDto.username, token);
   }
@@ -84,9 +93,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('/logout')
   @HttpCode(204)
-  @ApiNoContentResponse({ description: responseMessage.logout[204] })
-  @ApiUnauthorizedResponse({ description: errorMessage.logout['default'] })
-  async logout(@Req() req, @Headers('authorization') token: string): Promise<void> {
+  @ApiBearerAuth(apiBearerAuthName)
+  @ApiOperation(apiOperations.logout)
+  @ApiNoContentResponse(apiResponse.logout[204])
+  @ApiUnauthorizedResponse(apiResponse.logout[401])
+  async logout(@Req() req): Promise<void> {
     const { id, accessToken } = req.user;
     await this.authService.logout(id, accessToken);
   }
