@@ -1,11 +1,5 @@
 import { Exclude } from 'class-transformer';
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
 export class User {
@@ -24,7 +18,7 @@ export class User {
   @Column('varchar', { length: 100 })
   email: string;
 
-  @Column('text')
+  @Column('text', { nullable: true })
   url: string;
 
   @Exclude()
