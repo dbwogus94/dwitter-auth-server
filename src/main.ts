@@ -27,10 +27,10 @@ async function bootstrap() {
   SwaggerModule.setup('api/v1/docs', app, document);
 
   /* 전역 Pipe 설정 */
-  app.useGlobalPipes(
-    /* requset body가 매핑되는 dto에 대한 전역 유효성 검사 설정  */
-    new ValidationPipe(ValidationPipeOptions),
-  );
+  // app.useGlobalPipes(
+  //   /* requset body가 매핑되는 dto에 대한 전역 유효성 검사 설정  */
+  //   new ValidationPipe(ValidationPipeOptions),
+  // );
 
   await app.listen(config.get('PORT'));
 }

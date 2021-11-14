@@ -1,4 +1,17 @@
-import { Body, Controller, Get, Headers, HttpCode, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -10,6 +23,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { ValidationPipeOptions } from 'src/config/options/validation-pipe.options';
 import { errorMessage, responseMessage } from '../response-messages';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +38,7 @@ import { LocalAuthGuard } from './local-auth.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @UsePipes(new ValidationPipe(ValidationPipeOptions))
   @Post('/signup')
   @ApiCreatedResponse({ description: responseMessage.signup[201] })
   @ApiConflictResponse({ description: errorMessage.signup[409] })
@@ -58,6 +73,7 @@ export class AuthController {
 
   //@UseGuards(JwtAuthGuard)를 사용할 수 없음
   // => refresh 작업은 access토큰이 만료여도 가드를 통과해야 하기 때문이다.
+  @UsePipes(new ValidationPipe(ValidationPipeOptions))
   @Get('/refresh')
   @ApiOkResponse({ description: responseMessage.refresh[200] })
   @ApiUnauthorizedResponse({ description: errorMessage.refresh['default'] })
