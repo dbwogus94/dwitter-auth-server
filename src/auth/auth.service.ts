@@ -33,22 +33,22 @@ export class AuthService {
 
   /**
    * Bearer를 제거한 엑세스 토큰(jwt) 가져오기
-   * @param req
-   * @returns jwt token
-   * @throws UnauthorizedException
+   * @param accessToken
+   * @returns jwt token | null
    */
-  getAccessToken(accessToken: string): string {
+  getAccessToken(accessToken: string): string | null {
     if (!(accessToken && accessToken.startsWith('Bearer'))) {
-      this.throwAuthException();
+      return null;
     }
     return accessToken.split(' ')[1];
   }
 
   /**
+   * 인증 에러를 던지는 메서드
    * @throws UnauthorizedException
    */
-  throwAuthException() {
-    throw new UnauthorizedException();
+  throwAuthException(message = void 0) {
+    throw new UnauthorizedException(message);
   }
 
   /**
@@ -66,22 +66,15 @@ export class AuthService {
    * @param accessToken
    */
   async setBlacklist(id: number, accessToken: string): Promise<void> {
-    const client = this.getRedisClient();
-    await client.set(id.toString(), accessToken);
+    await this.getRedisClient().set(id.toString(), accessToken);
   }
 
   /**
-   * jwt가 블랙 리스트로 등록된 토큰인지 확인
-   * @param id
-   * @param accessToken
-   * @throws UnauthorizedException
+   * 블랙 리스트로 등록된 토큰 가져오기
+   * @param id - User.id
    */
-  async isBlacklistToken(id: string, accessToken: string): Promise<boolean> {
-    const client = this.getRedisClient();
-    const result = await client.get(id);
-    return result && result === accessToken
-      ? true //
-      : false;
+  async getBlacklistToken(id: string): Promise<string | null> {
+    return this.getRedisClient().get(id);
   }
 
   /**
@@ -102,7 +95,7 @@ export class AuthService {
     try {
       return this.jwtService.verify(accessToken, this.accessTokenOptions.secret);
     } catch (error) {
-      return false;
+      return this.throwAuthException();
     }
   }
 
@@ -131,9 +124,12 @@ export class AuthService {
 
   /**
    * 회원가입
+   * 1. 등록된 username인지 확인
+   * 2. password 암호화
+   * 3. DB에 insert user
    * @param singupDto
    * @returns create user pk
-   * @throws ConflictException: username 중복
+   * @throws ConflictException(409): username 중복
    */
   async signup(singupDto: SignupDto): Promise<{ id: number }> {
     const { username, password } = singupDto;
@@ -206,17 +202,23 @@ export class AuthService {
   }
 
   /**
-   * 엑세스 토큰 재발행
-   * 1. id와 엑세스 토큰으로 유저 조회
-   * 2. 조회한 유저가 가진 리프레쉬 토큰 유효한지 확인
-   * 3. 유효하다면 엑세스 토큰 재발행
-   * 4. 재발행한 토큰 DB에 저장
-   * 5. 재발행한 토큰 리턴
+   * refresh 작업 - 엑세스 토큰 재발행
+   * 1. 엑세스 토큰 확인
+   * 2. id와 엑세스 토큰으로 유저 조회
+   * 3. 조회한 유저가 가진 리프레쉬 토큰 유효한지 확인
+   * 4. 유효하다면 엑세스 토큰 재발행
+   * 5. 재발행한 토큰 DB에 저장
+   * 6. 재발행한 토큰 리턴
    * @param username
    * @param accessToken
    * @returns {username, accessToken}
    */
-  async refresh(username: string, accessToken: string): Promise<any> {
+  async refresh(username: string, token: string): Promise<any> {
+    // 엑세스 토큰 확인
+    const accessToken: string | null = this.getAccessToken(token);
+    if (!accessToken) {
+      this.throwAuthException('accessToken이 잘못되었습니다.');
+    }
     // user 조회(username와 엑세스토큰 사용하여 조회)
     const user = await this.userService.findByToken(username, accessToken);
     if (!user) {
@@ -243,8 +245,8 @@ export class AuthService {
 
   /**
    * 로그아웃
-   * - 로그아웃 요청한 유저 DB에서 토큰 제거
-   * - 엑세스 토큰 블랙리스트로 등록
+   * 1. 로그아웃 요청한 유저 DB에서 토큰 제거
+   * 2. 엑세스 토큰 블랙리스트로 등록
    * - 리프래시 토큰은 DB에서 관리했기 때문에 블랙리스트 등록 필요없음
    * @param id
    * @param accessToken
