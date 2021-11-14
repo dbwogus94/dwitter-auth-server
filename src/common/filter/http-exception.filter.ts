@@ -1,12 +1,7 @@
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
 import { Request, Response } from 'express';
 import * as path from 'path';
-import { errorMessage } from './response-messages';
+import { errorMessage } from '../../response-messages';
 
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -17,9 +12,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const status = exception.getStatus();
     const errResponse = exception.getResponse();
     const lastURL = path.basename(request.url).split('?')[0];
-    const customMessage = errorMessage[lastURL]
-      ? errorMessage[lastURL][status]
-      : undefined;
+    const customMessage = errorMessage[lastURL] ? errorMessage[lastURL][status] : undefined;
 
     return customMessage == null
       ? response.status(status).json(errResponse)

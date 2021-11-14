@@ -1,22 +1,17 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  RequestMethod,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MorganInterceptor, MorganModule } from 'nest-morgan';
 import { AuthModule } from './auth/auth.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
-import { Environment, validate } from './env.validation';
-import { HttpExceptionFilter } from './http-exception.filter';
-import { ResponseInterceptor } from './response.interceptor';
-import { User } from './user/entities/User.entity';
+import { Environment, validate } from './config/env.validation';
+import { HttpExceptionFilter } from './common/filter/http-exception.filter';
+import { ResponseInterceptor } from './common/interceptor/response.interceptor';
 import { UserModule } from './user/user.module';
-import { ConfigModuleOptions, ValidationPipeOptions } from './common/options';
+import { ConfigModuleOptions } from './config/options/config-module.options';
 import { RedisModule } from 'nestjs-redis';
+import { TypeOrmConfigService } from './config/typeorm-config.service';
 
 @Module({
   imports: [
@@ -43,27 +38,7 @@ import { RedisModule } from 'nestjs-redis';
         => useFactory를 사용해 모듈 동적 생성 */
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get('DB_HOST'),
-        port: +config.get<number>('DB_PORT'),
-        username: config.get('DB_USERNAME'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_DATABASE'),
-        // 엔티티 적용
-        entities: [User],
-        // 마이그래이션 파일 위치
-        migrations: ['migration/*.ts'],
-        cli: {
-          migrationsDir: 'migration',
-        },
-        // 시작시 엔티티에 따라 테이블 create
-        synchronize: true,
-        // 시작시 모든 테이블 drop
-        dropSchema: true,
-        // 한국 시간
-        timezone: '+09:00',
-      }),
+      useClass: TypeOrmConfigService,
       inject: [ConfigService],
     }),
     // morgan 모듈 DI
@@ -77,9 +52,7 @@ import { RedisModule } from 'nestjs-redis';
     {
       // morgan 전역 설정
       provide: APP_INTERCEPTOR,
-      useClass: MorganInterceptor(
-        process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev',
-      ),
+      useClass: MorganInterceptor(process.env.NODE_ENV === Environment.Production ? 'tiny' : 'dev'),
     },
     {
       provide: APP_INTERCEPTOR,
