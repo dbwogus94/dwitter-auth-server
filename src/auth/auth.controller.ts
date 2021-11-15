@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   Post,
   Query,
@@ -17,7 +16,6 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
-  ApiMovedPermanentlyResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -25,7 +23,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ValidationPipeOptions } from 'src/config/options/validation-pipe.options';
 import { apiBearerAuthName, apiOperations, apiResponse } from 'src/swagger-api-setting';
 import { AuthService } from './auth.service';
@@ -86,8 +84,10 @@ export class AuthController {
   @ApiOperation(apiOperations.refresh)
   @ApiOkResponse(apiResponse.refresh[200])
   @ApiUnauthorizedResponse(apiResponse.refresh[401])
-  async refresh(@Query() refreshDto: RefreshDto, @Headers('authorization') token: string): Promise<any> {
-    return this.authService.refresh(refreshDto.username, token);
+  async refresh(@Query() refreshDto: RefreshDto, @Req() req: Request): Promise<any> {
+    // TODO: @Headers('authorization') token: string 제거, express 방식으로 변경
+    // @Headers()를 사용하면 스웨거가 인식해서 docs에 적용함.
+    return this.authService.refresh(refreshDto.username, req.headers.authorization);
   }
 
   @UseGuards(JwtAuthGuard)
