@@ -203,7 +203,7 @@ export class AuthService {
     // refresh 토큰은 DB에서 관리
     return {
       username,
-      newAccessToken,
+      accessToken: newAccessToken,
     };
   }
 
