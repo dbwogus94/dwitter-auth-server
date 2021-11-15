@@ -2,11 +2,11 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Redis } from 'ioredis';
 import { RedisService } from 'nestjs-redis';
 import { User } from 'src/user/entities/User.entity';
 import { UserService } from 'src/user/user.service';
 import { SignupDto } from './dto/signup.dto';
-import { Redis } from 'ioredis';
 
 @Injectable()
 export class AuthService {
@@ -180,24 +180,30 @@ export class AuthService {
 
   /**
    * login 서비스
-   * 1. 엑세스 토큰 발행
-   * 2. 리프레시 토큰 발행
-   * 3. 엑세스, 리프레시 토큰 DB 저장
-   * 4. 리턴
+   * 1. DB에 엑세스 토큰이 존재하면, 로그아웃 실행(이중 로그인 방지)
+   * 2. 엑세스 토큰 발행
+   * 3. 리프레시 토큰 발행
+   * 4. 엑세스, 리프레시 토큰 DB 저장
+   * 5. 리턴
    * @param username
    * @returns {id, username, accessToken}
    */
-  async login(username: string): Promise<any> {
-    const user: User = await this.userService.findByUsername(username);
-    const { id } = user;
-    const accessToken: string = this.issueAccessToken({ id, username });
-    const refreshToken: string = this.issueRefreshToken();
-    await this.userService.updateTokens(id, accessToken, refreshToken);
+  async login(username: string, user: User): Promise<any> {
+    const { id, accessToken } = user;
+    /* 이중 로그인 방지 */
+    // 엑세스 토큰이 존재하면? 로그아웃 되지 않은 계정이다.
+    if (accessToken) {
+      // 로그아웃 실행
+      await this.logout(id, accessToken);
+    }
+    const newAccessToken: string = this.issueAccessToken({ id, username });
+    const newRefreshToken: string = this.issueRefreshToken();
+    await this.userService.updateTokens(id, newAccessToken, newRefreshToken);
 
     // refresh 토큰은 DB에서 관리
     return {
       username,
-      accessToken,
+      newAccessToken,
     };
   }
 
@@ -252,9 +258,9 @@ export class AuthService {
    * @param accessToken
    */
   async logout(id: number, accessToken: string): Promise<void> {
-    // DB에서 엑세스, 리프레시 토큰 제거
+    // DB에서 엑세스, 리프레시 토큰 제거   => refresh 로직 막기
     await this.userService.updateTokens(id, null, null);
-    // 엑세스 토큰 블랙리스트 등록
+    // 엑세스 토큰 블랙리스트 등록   => JwtAuthGuard의 jwt 인증로직 막기
     await this.setBlacklist(id, accessToken);
   }
 }

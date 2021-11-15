@@ -61,8 +61,9 @@ export class AuthController {
   @ApiOperation(apiOperations.login)
   @ApiCreatedResponse(apiResponse.login[201])
   @ApiUnauthorizedResponse(apiResponse.login[401])
-  async login(@Body() loginDto: LoginDto): Promise<any> {
-    return this.authService.login(loginDto.username);
+  async login(@Body() loginDto: LoginDto, @Req() req: any): Promise<any> {
+    return this.authService.login(loginDto.username, req.user);
+    // req.user LocalAuthGuard에서 생성
   }
 
   @UseGuards(JwtAuthGuard)
