@@ -2,11 +2,11 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Redis } from 'ioredis';
 import { RedisService } from 'nestjs-redis';
 import { User } from 'src/user/entities/User.entity';
 import { UserService } from 'src/user/user.service';
 import { SignupDto } from './dto/signup.dto';
-import { Redis } from 'ioredis';
 
 @Injectable()
 export class AuthService {
@@ -180,24 +180,30 @@ export class AuthService {
 
   /**
    * login 서비스
-   * 1. 엑세스 토큰 발행
-   * 2. 리프레시 토큰 발행
-   * 3. 엑세스, 리프레시 토큰 DB 저장
-   * 4. 리턴
+   * 1. DB에 엑세스 토큰이 존재하면, 로그아웃 실행(이중 로그인 방지)
+   * 2. 엑세스 토큰 발행
+   * 3. 리프레시 토큰 발행
+   * 4. 엑세스, 리프레시 토큰 DB 저장
+   * 5. 리턴
    * @param username
    * @returns {id, username, accessToken}
    */
-  async login(username: string): Promise<any> {
-    const user: User = await this.userService.findByUsername(username);
-    const { id } = user;
-    const accessToken: string = this.issueAccessToken({ id, username });
-    const refreshToken: string = this.issueRefreshToken();
-    await this.userService.updateTokens(id, accessToken, refreshToken);
+  async login(username: string, user: User): Promise<any> {
+    const { id, accessToken } = user;
+    /* 이중 로그인 방지 */
+    // 엑세스 토큰이 존재하면? 로그아웃 되지 않은 계정이다.
+    if (accessToken) {
+      // 로그아웃 실행
+      await this.logout(id, accessToken);
+    }
+    const newAccessToken: string = this.issueAccessToken({ id, username });
+    const newRefreshToken: string = this.issueRefreshToken();
+    await this.userService.updateTokens(id, newAccessToken, newRefreshToken);
 
     // refresh 토큰은 DB에서 관리
     return {
       username,
-      accessToken,
+      accessToken: newAccessToken,
     };
   }
 
@@ -206,33 +212,36 @@ export class AuthService {
    * 1. 엑세스 토큰 확인
    * 2. id와 엑세스 토큰으로 유저 조회
    * 3. 조회한 유저가 가진 리프레쉬 토큰 유효한지 확인
-   * 4. 유효하다면 엑세스 토큰 재발행
-   * 5. 재발행한 토큰 DB에 저장
-   * 6. 재발행한 토큰 리턴
+   * 4. 유효하지 않다면? 로그아웃 로직 실행 후 에러를 발생
+   * 5. 유효하다면? 엑세스 토큰 재발행
+   * 6. 재발행한 토큰 DB에 저장
+   * 7. 재발행한 토큰 리턴
    * @param username
    * @param accessToken
    * @returns {username, accessToken}
    */
   async refresh(username: string, token: string): Promise<any> {
-    // 엑세스 토큰 확인
     const accessToken: string | null = this.getAccessToken(token);
     if (!accessToken) {
       this.throwAuthException('accessToken이 잘못되었습니다.');
     }
-    // user 조회(username와 엑세스토큰 사용하여 조회)
     const user = await this.userService.findByToken(username, accessToken);
     if (!user) {
       this.throwAuthException();
     }
     const { id, refreshToken } = user;
-    // 조회한 리프레쉬 토큰 유효한지 확인
     const isAlive = !!this.isRefreshTokenAlive(refreshToken);
+    // 리프레쉬 토큰이 만료됬으면? 로그아웃 실행과 에러 발생
     if (!isAlive) {
+      await this.logout(id, accessToken);
+      // Q) 로그아웃 처리하는 이유는?
+      // A) 엑세스 토큰 만료전 재발급 요청을 하는 경우도 예상해야 한다.
+      // 때문에 리프레시 토큰이 만료면, 로그아웃 로직을 실행하고, 재로그인을 유도한다.
       this.throwAuthException();
     }
-    // 리프레시 토큰이 유효하다면 엑세스 토큰 재발행
+    // 리프레시 토큰이 유효하다면? 엑세스 토큰 재발행
     const newAccessToken = this.issueAccessToken({ id, username });
-    // 재발행한 토큰들 DB 저장
+    // 재발행한 토큰 DB 저장
     await this.userService.updateTokens(id, accessToken, refreshToken);
     // 기존 엑세스 토큰은 블랙 리스트로 추가
     await this.setBlacklist(id, accessToken);
@@ -252,9 +261,9 @@ export class AuthService {
    * @param accessToken
    */
   async logout(id: number, accessToken: string): Promise<void> {
-    // DB에서 엑세스, 리프레시 토큰 제거
+    // DB에서 엑세스, 리프레시 토큰 제거   => refresh 로직 막기
     await this.userService.updateTokens(id, null, null);
-    // 엑세스 토큰 블랙리스트 등록
+    // 엑세스 토큰 블랙리스트 등록   => JwtAuthGuard의 jwt 인증로직 막기
     await this.setBlacklist(id, accessToken);
   }
 }

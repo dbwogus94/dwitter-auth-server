@@ -23,7 +23,7 @@ export const apiResponse = {
   },
   refresh: {
     200: { description: responseMessage.refresh[200] },
-    401: { description: errorMessage.refresh['default'] },
+    401: { description: errorMessage.refresh[401] },
   },
   logout: {
     204: { description: responseMessage.logout[204] },
