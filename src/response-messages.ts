@@ -20,6 +20,9 @@ export const errorMessage = {
   signup: { 409: '중복된 아이디(username) 입니다.' },
   login: { 401: '등록된 사용자가 아니거나, 정보가 일치하지 않습니다.' },
   me: { default: 'Unauthorized(인증 오류)' },
-  refresh: { default: 'Unauthorized(인증 오류)' },
+  refresh: {
+    default: 'Unauthorized(인증 오류)',
+    401: '토큰이 만료되었습니다. 다시 로그인 하세요.',
+  },
   logout: { default: 'Unauthorized(인증 오류)' },
 };

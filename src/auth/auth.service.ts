@@ -212,33 +212,36 @@ export class AuthService {
    * 1. 엑세스 토큰 확인
    * 2. id와 엑세스 토큰으로 유저 조회
    * 3. 조회한 유저가 가진 리프레쉬 토큰 유효한지 확인
-   * 4. 유효하다면 엑세스 토큰 재발행
-   * 5. 재발행한 토큰 DB에 저장
-   * 6. 재발행한 토큰 리턴
+   * 4. 유효하지 않다면? 로그아웃 로직 실행 후 에러를 발생
+   * 5. 유효하다면? 엑세스 토큰 재발행
+   * 6. 재발행한 토큰 DB에 저장
+   * 7. 재발행한 토큰 리턴
    * @param username
    * @param accessToken
    * @returns {username, accessToken}
    */
   async refresh(username: string, token: string): Promise<any> {
-    // 엑세스 토큰 확인
     const accessToken: string | null = this.getAccessToken(token);
     if (!accessToken) {
       this.throwAuthException('accessToken이 잘못되었습니다.');
     }
-    // user 조회(username와 엑세스토큰 사용하여 조회)
     const user = await this.userService.findByToken(username, accessToken);
     if (!user) {
       this.throwAuthException();
     }
     const { id, refreshToken } = user;
-    // 조회한 리프레쉬 토큰 유효한지 확인
     const isAlive = !!this.isRefreshTokenAlive(refreshToken);
+    // 리프레쉬 토큰이 만료됬으면? 로그아웃 실행과 에러 발생
     if (!isAlive) {
+      await this.logout(id, accessToken);
+      // Q) 로그아웃 처리하는 이유는?
+      // A) 엑세스 토큰 만료전 재발급 요청을 하는 경우도 예상해야 한다.
+      // 때문에 리프레시 토큰이 만료면, 로그아웃 로직을 실행하고, 재로그인을 유도한다.
       this.throwAuthException();
     }
-    // 리프레시 토큰이 유효하다면 엑세스 토큰 재발행
+    // 리프레시 토큰이 유효하다면? 엑세스 토큰 재발행
     const newAccessToken = this.issueAccessToken({ id, username });
-    // 재발행한 토큰들 DB 저장
+    // 재발행한 토큰 DB 저장
     await this.userService.updateTokens(id, accessToken, refreshToken);
     // 기존 엑세스 토큰은 블랙 리스트로 추가
     await this.setBlacklist(id, accessToken);
